@@ -22,7 +22,7 @@ add_spacer|small|
 add_label_with_icon|small|Added `6/set Length. `1[Max 24!]``|left|482|
 add_label_with_icon|small|Added `6/wn `1[With Number.]``|left|482|
 add_label_with_icon|small|Added `6/nn `1[No Number.]``|left|482|
-add_label_with_icon|small|Added `6/find `1[To Find World.]``|left|482|
+add_label_with_icon|small|Added `6/f `1[To Find World.]``|left|482|
 add_label_with_icon|small|Added `6Shortcut find world: `1[Friend Button.]``|left|482|
 add_spacer|small|
 add_url_button||Join Discord|NOFLAGS|https://discord.gg/sMgNPMxKe|wanna Join My Discord Server?|0|0|
