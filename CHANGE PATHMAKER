@@ -191,13 +191,13 @@ end_dialog|lusi|Close|
 end
 
 function MainGlory()
-sendPacket(3, "action|join_request\nname|muru10k|baso11\ninvitedWorld|0")
+sendPacket(3, "action|join_request\nname|OEQQO|NNAME\ninvitedWorld|0")
 sleep(3000)
 sendPacket(2,"action|welcomeadrewarded")
 while true do
 if getWorld() then
    for _, v in pairs(getInventory()) do
-      if getWorld().name == "MURU10K" then        
+      if getWorld().name == "OEQQO" then        
          sendPacket(2, "action|store\nlocation|gem")
          sendPacket(2, "action|drop\n|itemID|"..v.id);
          sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|"..v.id.."|\ncount|"..v.amount);
