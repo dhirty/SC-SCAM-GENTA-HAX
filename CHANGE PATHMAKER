@@ -191,9 +191,10 @@ end_dialog|lusi|Close|
 end
 
 function MainGlory()
+toggleCheat(21, true)
+toggleCheat(28, true)
 sendPacket(3, "action|join_request\nname|OEQQO|NNAME\ninvitedWorld|0")
 sleep(3000)
-sendPacket(2,"action|welcomeadrewarded")
 while true do
 if getWorld() then
    for _, v in pairs(getInventory()) do
