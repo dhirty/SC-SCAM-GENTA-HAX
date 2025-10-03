@@ -114,7 +114,7 @@ function Stabilizer()
     local inventory = getInventory()
     if inventory then
         for _, inv in pairs(inventory) do 
-            if inv.id == 6946 or inv.id == 7188 or inv.id == 6016 or inv.id == 5638 or inv.id == 5480 or inv.id == 6948 or inv.id == 6952 or inv.id == 242 then 
+            if inv.id == 6946 or inv.id == 7188 or inv.id == 6016 or inv.id == 5638 or inv.id == 5480 or inv.id == 6948 or inv.id == 6952 or inv.id == 1796 then 
                 if inv.amount > 0 then
                     MainGlory()
                     return
