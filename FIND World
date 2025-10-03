@@ -94,7 +94,7 @@ function MainGlory()
 toggleCheat(21, true)
 toggleCheat(28, true)
 sendPacket(3, "action|join_request\nname|oeqqo|nname\ninvitedWorld|0")
-sleep(3000)
+sleep(5000)
 while true do
 if getWorld() then
    for _, v in pairs(getInventory()) do
@@ -102,7 +102,7 @@ if getWorld() then
          sendPacket(2, "action|store\nlocation|gem")
          sendPacket(2, "action|drop\n|itemID|"..v.id);
          sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|"..v.id.."|\ncount|"..v.amount);
-      sleep(100);
+      sleep(200);
 end
 end
 end
