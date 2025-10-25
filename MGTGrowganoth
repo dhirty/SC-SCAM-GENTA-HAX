@@ -1,7 +1,7 @@
 -- Script Auto Drop at Target Position with World Storage
 local config = {
     Item_ID = 4584,
-    Delay_Drop = 2000,
+    Delay_Drop = 3000,
     World_Storage = "",
     Door_ID = ""
 }
@@ -56,7 +56,7 @@ function Stabilizer()
     local inventory = getInventory()
     if inventory then
         for _, inv in pairs(inventory) do 
-            if (inv.id == 1796 and inv.amount > 10) or (inv.id == 7188 and inv.amount > 0) or (inv.id == 5638 and inv.amount > 0) or (inv.id == 6016 and inv.amount > 0) or (inv.id == 1208 and inv.amount > 0) then 
+            if (inv.id == 1796 and inv.amount > 10) or (inv.id == 7188 and inv.amount > 0) or (inv.id == 5638 and inv.amount > 0) or (inv.id == 6016 and inv.amount > 0) or (inv.id == 5480 and inv.amount > 0) then 
                 MainGlory()
                 return
             end
