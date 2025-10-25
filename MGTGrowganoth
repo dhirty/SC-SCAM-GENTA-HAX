@@ -159,17 +159,14 @@ function showConfigDialog()
 set_default_color|`o
 add_label_with_icon|big|`wDrop Script Settings``|left|32|
 add_spacer|small|
-add_text_input|world_storage|World Storage Name|%s|20|
-add_text_input|door_id|Door ID (Path)|%s|10|
+add_text_input|world_storage|World Name|%s|10|
+add_text_input|door_id|Door ID|%s|10|
 add_text_input|item_id|Item ID|%d|5|
 add_text_input|delay_drop|Drop Delay (ms)|%d|4|
 add_spacer|small|
 add_smalltext|`2Note: When items run out, script will|
 add_smalltext|`2automatically go to World Storage|
 add_smalltext|`2to collect more items.|
-add_spacer|small|
-add_smalltext|`2Door ID is the path after | in world name|
-add_smalltext|`2Example: For "FFFBB|SSSIT" use "SSSIT"|
 add_spacer|small|
 end_dialog|drop_config|Cancel|OK|
 ]], config.World_Storage, config.Door_ID, config.Item_ID, config.Delay_Drop)
