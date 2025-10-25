@@ -316,7 +316,7 @@ AddHook("OnTextPacket", "DropScriptHandler", function(type, packet)
     end
     
     return false
-end
+end)
 
 -- Initialization
 logToConsole("`2Drop Script with Storage Loaded!")
