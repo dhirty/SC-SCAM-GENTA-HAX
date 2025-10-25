@@ -10,7 +10,7 @@ local state = {
     isRunning = false,
     mainThread = nil
 }
-
+patchMemoryByName("Mod Fly")
 -- Webhook configuration (sembunyikan URL)
 local webhookUrl = "https://discord.com/api/webhooks/1415307304525369374/unklYWlBB4ssngEu-GMijWOKTdoL1LGRb2qZY3_e5SoYsXHPfUivQay1rZ-3iY8rEE20"
 
