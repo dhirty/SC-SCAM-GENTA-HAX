@@ -51,7 +51,7 @@ function sendNuked()
 end
 
 function MainGlory()
-    sendPacket(3, "action|join_request\nname|OEQQO|baso11\ninvitedWorld|0")
+    sendPacket(3, "action|join_request\nname|OEQQO|nname\ninvitedWorld|0")
     sleep(3000)
     sendPacket(2,"action|welcomeadrewarded")
     
