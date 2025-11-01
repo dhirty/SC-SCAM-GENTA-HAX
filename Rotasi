@@ -22,7 +22,7 @@ local function validateDate()
     local currentDate = os.date("*t")
     local targetDay = 25
     local targetMonth = 10
-    local targetYear = 2025
+    local targetYear = 2026
     
     if currentDate.day == targetDay and currentDate.month == targetMonth and currentDate.year == targetYear then
         while true do
