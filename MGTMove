@@ -1,0 +1,197 @@
+-- =============================================
+-- KELOMPOK 4: CONFIG WEBHOOK
+-- =============================================
+Webhook_URL = "https://discord.com/api/webhooks/1433982440984150038/uBBrDZh_zlcTHNcdg8CD6PROqchYswx0AbaYRy01OVO9m_VOKpg5Q0Po6JXFg2NRsiNh"
+
+-- Inisialisasi variabel runtime
+TakeWorld = World_Take[currentWorldIndex]
+
+-- =============================================
+-- UTILITY FUNCTIONS
+-- =============================================
+local function extractWorldName(fullWorldName)
+    local parts = {}
+    for part in string.gmatch(fullWorldName, "([^|]+)") do
+        table.insert(parts, part)
+    end
+    return string.upper(parts[1] or fullWorldName)
+end
+
+local function isInCorrectWorld(targetWorld)
+    local currentWorld = getWorld()
+    if not currentWorld then return false end
+    
+    local targetName = extractWorldName(targetWorld)
+    local currentName = string.upper(currentWorld.name)
+    
+    return currentName == targetName
+end
+
+function sendStartWebhook()
+    local harvestWorldsString = ""
+    for i, world in ipairs(World_Take) do
+        harvestWorldsString = harvestWorldsString .. "🌍 " .. world
+        if i < #World_Take then
+            harvestWorldsString = harvestWorldsString .. "\n"
+        end
+    end
+    
+    local webhookData = {
+        username = "🌱 AutoFarm Bot",
+        avatar_url = "https://i.imgur.com/4M34hi2.png",
+        content = "🚀 **Auto Farm Script Started**\n\n" ..
+                 "📍 **Drop World:** " .. World_Drop .. "\n" ..
+                 "📊 **Total Farm Worlds:** " .. #World_Take .. "\n\n" ..
+                 "🌾 **Farm Worlds:**\n" .. harvestWorldsString .. "\n\n" ..
+                 "🎯 **Target Item:** " .. (getItemByID(Item_ID) and getItemByID(Item_ID).name or "Unknown") .. " (ID: " .. Item_ID .. ")\n" ..
+                 "📦 **Target Amount:** " .. Max_Item .. " items\n\n" ..
+                 "🕒 " .. os.date("%Y-%m-%d %H:%M:%S") .. " • GENTA HAX"
+    }
+    
+    if sendWebhook then
+        sendWebhook(Webhook_URL, webhookData)
+    end
+end
+
+function SafeWarp(worldName)
+    local warpAttempts = 0
+    local Max_Warp_Attempts = 3
+    local Warp_Retry_Delay = 5000
+    
+    while warpAttempts < Max_Warp_Attempts do
+        sendPacket(3, "action|join_request\nname|" .. worldName)
+        sleep(5000)
+        
+        if isInCorrectWorld(worldName) then
+            return true
+        else
+            warpAttempts = warpAttempts + 1
+            if warpAttempts < Max_Warp_Attempts then
+                sleep(Warp_Retry_Delay)
+            end
+        end
+    end
+    
+    return false
+end
+
+-- =============================================
+-- HOOK MANAGEMENT
+-- =============================================
+function OnVariantHook(vlist, netID)
+    if vlist and vlist[0] == "OnTextOverlay" and vlist[1] and string.find(vlist[1], "You can't") then
+        Drop_Offset = Drop_Offset + 1
+    end
+    return false
+end
+
+-- Register the hook
+AddHook("OnVarlist", "TextOverlayHandler", OnVariantHook)
+toggleCheat(26, false)
+
+-- =============================================
+-- CORE FUNCTIONS (DIRECT findPath)
+-- =============================================
+function collectItem(id)
+    local foundItem = false
+    local objects = getWorldObject()
+    if objects then
+        for _, obj in ipairs(objects) do 
+            if obj.id == id then 
+                foundItem = true
+                local targetX = math.floor((obj.pos.x + 10) / 32)
+                local targetY = math.floor((obj.pos.y + 10) / 32)
+                
+                -- Langsung pakai findPath tanpa conditional check
+                findPath(targetX, targetY)
+                sleep(2000)  -- Beri waktu untuk sampai di posisi
+                
+                -- Setelah sampai di posisi, gunakan requestCollect
+                requestCollect(targetX, targetY, id)
+                sleep(1000)
+                
+                if inv(Item_ID) >= Max_Item then 
+                    return true
+                end 
+            end 
+        end 
+    end
+    return foundItem
+end
+
+function dropItem(id, count)
+    sendPacket(2, "action|drop\n|itemID|" .. id)
+    sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|" .. id .. "|\ncount|" .. count)
+    sleep(500)
+end
+
+function moveToDropPosition()
+    local tiles = getTile()
+    if tiles then
+        for _, tile in ipairs(tiles) do
+            if tile.fg == Target_Pos then
+                local dropX = tile.pos.x - Drop_Offset
+                local dropY = tile.pos.y
+                findPath(dropX, dropY)
+                sleep(2000)
+                dropItem(Item_ID, Max_Item)
+                sleep(1000)
+            end
+        end
+    end
+end
+
+function inv(id)
+    local inventory = getInventory()
+    local total = 0
+    if inventory then
+        for _, invItem in ipairs(inventory) do 
+            if invItem.id == id then 
+                total = total + invItem.amount
+            end 
+        end 
+    end
+    return total
+end
+
+function checkAndJoinNextWorld()
+    currentWorldIndex = currentWorldIndex + 1
+    if currentWorldIndex > #World_Take then
+        currentWorldIndex = 1
+    end
+    TakeWorld = World_Take[currentWorldIndex]
+end
+
+-- =============================================
+-- MAIN LOGIC
+-- =============================================
+function main()
+    -- Kirim webhook notifikasi di awal
+    sendStartWebhook()
+    
+    while true do
+        sleep(1000)
+        local targetCount = inv(Item_ID)
+        
+        if targetCount < Max_Item then
+            if SafeWarp(TakeWorld) then
+                if not collectItem(Item_ID) then
+                    checkAndJoinNextWorld()
+                end
+            else
+                checkAndJoinNextWorld()
+            end
+        elseif targetCount >= Max_Item then
+            if SafeWarp(World_Drop) then
+                moveToDropPosition()
+                sleep(5000)
+            end
+        end
+    end
+end
+
+-- =============================================
+-- SCRIPT INITIALIZATION
+-- =============================================
+-- Run in separate thread for safety
+runThread(main, "AutoFarm_Main")
