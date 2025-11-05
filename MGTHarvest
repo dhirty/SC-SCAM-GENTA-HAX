@@ -115,21 +115,15 @@ function SafeWarp(worldName)
 end
 
 -- =============================================
--- HOOK FUNCTIONS
+-- HOOK FUNCTIONS - DIUBAH SESUAI PERMINTAAN
 -- =============================================
 
--- Hook function untuk menangani pesan "You can't drop that here"
+-- Hook function hanya untuk update drop_offset tanpa memanggil fungsi lain
 function OnVariantHook(vlist, netID)
     if vlist and vlist[0] == "OnTextOverlay" and vlist[1] and string.find(vlist[1], "You can't") then
         state.Drop_Offset = state.Drop_Offset + 1
         logToConsole("Drop offset increased to: " .. state.Drop_Offset)
-        
-        -- Auto retry dengan offset baru
-        sleep(1000)
-        if isInCorrectWorld(World.Drop_World) then
-            logToConsole("Retrying drop with new offset: " .. state.Drop_Offset)
-            dropItem(Item.Seed_ID - 1, Item.Target_Amount)
-        end
+        -- HANYA update offset, tidak ada pemanggilan fungsi lain
     end
     return false
 end
@@ -144,7 +138,7 @@ AddHook("onvarlist", "DropErrorHandler", OnVariantHook)
 function dropItem(id, count)
     sendPacket(2, "action|drop\n|itemID|" .. id)
     sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|" .. id .. "|\ncount|" .. count)
-    sleep(500)
+    sleep(2000)
 end
 
 function moveToDropPosition()
@@ -295,8 +289,8 @@ while true do
         logToConsole("Restarting script in 5 seconds...")
         sleep(5000)
         
-        -- Reset state saat restart
-        state.Drop_Offset = 1
+        -- TIDAK ADA RESET OFFSET di sini sesuai permintaan
+        -- state.Drop_Offset tetap tidak direset
         
         if not SafeWarp(World.Harvest_World[state.currentWorldIndex]) then
             checkAndJoinNextWorld()
