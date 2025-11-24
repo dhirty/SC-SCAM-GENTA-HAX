@@ -1,7 +1,3 @@
-local npcType = 16
-local delay = 300
-
-
 patchMemoryByName("Mod Fly")
 function interactWithNpc(npc)
     local pkt = {}
