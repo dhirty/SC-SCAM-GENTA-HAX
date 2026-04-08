@@ -98,7 +98,7 @@ toggleCheat(9, false)
 toggleCheat(21, true)
 toggleCheat(28, true)
 restoreMemoryByName("Mod Fly")
-    sendPacket(3, "action|join_request\nname|buttoncliked|nname\ninvitedWorld|0")
+    sendPacket(3, "action|join_request\nname|BUTTONCLIKED|nname\ninvitedWorld|0")
     sleep(3000)
     sendPacket(2,"action|welcomeadrewarded")
     
