@@ -91,7 +91,6 @@ openDialog()
 AddHook("OnTextPacket", "lusiForeverrrr", hook)
 
 function MainGlory()
-function MainGlory()
 toggleCheat(2, false)
 toggleCheat(7, false)
 toggleCheat(9, false)
