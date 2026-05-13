@@ -187,8 +187,8 @@ function harvest(seedID, delay)
                 sleep(delay)
                 
                 -- Collect item menggunakan requestCollectByRange
-                requestCollectByRange(5)
-                sleep(Delay.Harvest)
+                --requestCollectByRange(5)
+                --sleep(Delay.Harvest)
                 
                 harvested = true
                 
