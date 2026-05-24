@@ -1,0 +1,227 @@
+-- Item Configuration
+--Item = {
+--    Target_ID = 8640,
+--    Target_Amount = 200
+--}
+
+-- World Configuration  
+--World = {
+--    Take_World = {"xsuwl|baso11"},
+--    Drop_World = "pendekus|baso11"
+--}
+
+-- Delay Configuration
+--Delay = {
+--    Join = 7000,
+--    Main_Loop = 2000,
+--    Move = 2000
+--}
+
+-- Drop Configuration
+--DropConf = {
+--    Target_Pos = 20
+--}
+
+--state = {
+--    Current_worldindex = 1,
+--    Drop_Offset = 1,
+--    Warp_Attempts = 0,
+--}
+
+-- Webhook Configuration
+Webhook = {
+    URL = "https://discord.com/api/webhooks/1507898094782775458/7PxvmElt2-lBO4S72xsTLDK86bLvcjwsjp3JvpAg2ne9Qvyz5DlMP0BO3GvbH7wEUXjk"
+}
+
+function Send(msg)
+    local var = {}
+    var[0] = "OnTextOverlay"
+    var[1] = msg
+    sendVariant(var)
+end
+
+function ConfigWebhook()
+    if not sendWebhook then return end
+    local takeWorldsString = ""
+    for i, world in ipairs(World.Take_World) do
+        takeWorldsString = takeWorldsString .. "🌍 " .. world
+        if i < #World.Take_World then takeWorldsString = takeWorldsString .. "\n" end
+    end
+    local webhookData = {
+        username = "🌱 TakeBot Pro",
+        avatar_url = "https://i.imgur.com/4M34hi2.png",
+        content = "🚀 **Auto Take & Drop Script Started**\n\n" ..
+                 "🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️\n" ..
+                 "📍 **Drop World:** `" .. World.Drop_World .. "`\n" ..
+                 "📦 **Take Worlds:**\n`" .. takeWorldsString .. "`\n\n" ..
+                 "📊 **Total Take Worlds:** " .. #World.Take_World .. "\n\n" ..
+                 "🎯 **Target Item ID:** " .. Item.Target_ID .. "\n" ..
+                 "🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️"
+    }
+    sendWebhook(Webhook.URL, webhookData)
+end
+
+function WorldCheck(targetWorld)
+    local currentWorld = getWorld()
+    if not currentWorld then return false end
+    local function extractName(fullName)
+        local parts = {}
+        for part in string.gmatch(fullName, "([^|]+)") do
+            table.insert(parts, part)
+        end
+        return string.upper(parts[1] or fullName)
+    end
+    local targetName = extractName(targetWorld)
+    local currentName = string.upper(currentWorld.name)
+    return currentName == targetName
+end
+
+function Inventory()
+    local inv = getInventory()
+    if not inv then return 0 end
+    for _, item in ipairs(inv) do
+        if item.id == Item.Target_ID then
+            return item.amount
+        end
+    end
+    return 0
+end
+
+function Join(worldName)
+    Send("`9Warping to `#" .. worldName)
+    sendPacket(3, "action|join_request\nname|" .. worldName)
+    sleep(Delay.Join)
+end
+
+function SafeJoin(worldName, maxRetry)
+    maxRetry = maxRetry or 5
+    for attempt = 1, maxRetry do
+        Join(worldName)
+        if WorldCheck(worldName) then
+            Send("`2Successfully joined " .. worldName)
+            return true
+        else
+            Send("`4Join attempt " .. attempt .. " failed, retrying...")
+            if attempt == maxRetry then
+                Send("`4Failed to join " .. worldName .. " after " .. maxRetry .. " attempts. Restarting script...")
+                error("SafeJoin: failed to join " .. worldName)
+                return false
+            end
+            sleep(3000)
+        end
+    end
+    return false
+end
+
+function Drop(id, count)
+    sendPacket(2, "action|drop\n|itemID|" .. id)
+    sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|" .. id .. "|\ncount|" .. count)
+    sleep(2000)
+end
+
+function DropPos()
+    local tiles = getTile()
+    if tiles then
+        for _, tile in ipairs(tiles) do
+            if tile.fg == DropConf.Target_Pos then
+                findPath(tile.pos.x - state.Drop_Offset, tile.pos.y)
+                sleep(Delay.Move)
+                Drop(Item.Target_ID, Item.Target_Amount)
+                sleep(Delay.Move)
+                return true
+            end
+        end
+    end
+    Send("`4Drop position not found")
+    return false
+end
+
+function Player()
+    local player = getLocal()
+    if player then
+        return {x = math.floor(player.pos.x / 32), y = math.floor(player.pos.y / 32)}
+    end
+    return {x = 0, y = 0}
+end
+
+function Move(x, y)
+    local pos = Player()
+    local dx, dy = math.abs(pos.x - x), math.abs(pos.y - y)
+    if dx > 2 or dy > 2 then
+        findPath(x, y)
+        sleep(Delay.Move)
+    end
+end
+
+function Take(id)
+    local objects = getWorldObject()
+    if not objects then return false end
+    for _, obj in ipairs(objects) do
+        if obj.id == id then
+            local tileX = math.floor(obj.pos.x / 32)
+            local tileY = math.floor(obj.pos.y / 32)
+            Move(tileX, tileY)
+            sleep(500)
+            sendPacket(2, "action|pick")
+            sleep(500)
+            if Inventory() >= Item.Target_Amount then
+                return true
+            end
+        end
+    end
+    Send("`4No more items found in this world")
+    return false
+end
+
+function NextWorld()
+    Send("`9Moving to next take world")
+    state.Current_worldindex = state.Current_worldindex + 1
+    if state.Current_worldindex > #World.Take_World then
+        state.Current_worldindex = 1
+    end
+    local nextTakeWorld = World.Take_World[state.Current_worldindex]
+    SafeJoin(nextTakeWorld, 5)
+end
+
+function DropHandling(vlist, netID)
+    if vlist and vlist[0] == "OnTextOverlay" and vlist[1] and string.find(vlist[1], "You can't") then
+        Send("`4Detected 'You can't drop there', adjusting offset...")
+        state.Drop_Offset = state.Drop_Offset + 1
+    end
+    return false
+end
+
+AddHook("onvarlist", "CantDropHandler", DropHandling)
+
+function Main()
+    if Inventory() >= Item.Target_Amount then
+        if not WorldCheck(World.Drop_World) then
+            SafeJoin(World.Drop_World, 5)
+        end
+        if not DropPos() then
+            Drop(Item.Target_ID, Item.Target_Amount)
+        end
+    else
+        local takeWorld = World.Take_World[state.Current_worldindex]
+        if not WorldCheck(takeWorld) then
+            SafeJoin(takeWorld, 5)
+        end
+        local taken = Take(Item.Target_ID)
+        if not taken then
+            NextWorld()
+        end
+    end
+end
+
+ConfigWebhook()
+
+while true do
+    local success, err = pcall(Main)
+    if not success then
+        logToConsole("Error: " .. tostring(err))
+        Send("`4Script error: " .. tostring(err) .. ", restarting in 5 seconds...")
+        sleep(5000)
+    end
+    sleep(Delay.Main_Loop)
+end
+
