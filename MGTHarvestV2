@@ -1,0 +1,328 @@
+--[[
+-- =============================================
+-- SCRIPT AUTO HARVEST (BUILD ULANG)
+-- =============================================
+
+-- =============================================
+-- KONFIGURASI
+-- =============================================
+
+ITEM = {
+    Seed_ID = 4585,        -- ID bibit yang akan dipanen
+    Target_Amount = 190    -- Target jumlah block/seed sebelum drop
+}
+
+WORLD = {
+    Harvest_World = {"jwttp|baso11"},  -- Daftar world panen
+    Drop_World = "homosen|baso99"                    -- World untuk drop
+}
+
+DELAY = {
+    Harvest = 300,         -- Jeda antar harvest
+    Warp = 7000,           -- Jeda setelah warp
+    Loop = 2000,           -- Jeda antar siklus utama
+    Move = 1000            -- Jeda setelah findPath
+}
+
+DROP = {
+    Target_Pos = 20,       -- ID foreground tile target untuk drop
+    Drop_Index = 2         -- Offset dari tile target (x - offset)
+}
+
+-- =============================================
+-- STATE (Jangan diubah manual)
+-- =============================================
+
+state = {
+    warpAttempts = 0,
+    Max_Warp_Attempts = 5,
+    World_Index = 1,
+    paused = false
+}
+]]
+-- =============================================
+-- FUNGSI UTILITY
+-- =============================================
+
+function send(txt)
+    local var = {}
+    var[0] = "OnTextOverlay"
+    var[1] = txt
+    sendVariant(var)
+end
+
+function Warp(worldName)
+    state.warpAttempts = 0
+    local maxAttempts = state.Max_Warp_Attempts or 5
+
+    while state.warpAttempts < maxAttempts do
+        send("`2Warping to `#" .. worldName .. " (" .. (state.warpAttempts + 1) .. "/" .. maxAttempts .. ")")
+        sendPacket(3, "action|join_request\nname|" .. worldName)
+        sleep(DELAY.Warp)
+
+        local currentWorld = getWorld()
+        local isCorrect = false
+        if currentWorld then
+            local targetName = string.upper((worldName:match("([^|]+)") or worldName))
+            local currentName = string.upper(currentWorld.name)
+            isCorrect = (targetName == currentName)
+        end
+
+        if isCorrect then
+            send("`2Arrived at `#" .. worldName)
+            return true
+        else
+            state.warpAttempts = state.warpAttempts + 1
+            if state.warpAttempts < maxAttempts then
+                sleep(5000)
+            end
+        end
+    end
+
+    send("`4Failed to warp to `#" .. worldName)
+    state.paused = true
+    send("`4Script paused due to warp failure")
+    return false
+end
+
+function collect(tileX, tileY)
+    local collectIDs = {ITEM.Seed_ID, ITEM.Seed_ID - 1}
+    for _, id in ipairs(collectIDs) do
+        requestCollect(tileX, tileY, id)
+        sleep(50)
+    end
+end
+
+
+function dropItem(id, count)
+    sendPacket(2, "action|drop\n|itemID|" .. id)
+    sleep(100)
+    sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|" .. id .. "|\ncount|" .. count)
+    sleep(100)
+end
+
+function inventory()
+    local inv = getInventory()
+    if not inv then return 0, 0 end
+    
+    local block_Amount = 0
+    local seed_Amount = 0
+    
+    for _, item in ipairs(inv) do
+        if item.id == ITEM.Seed_ID - 1 then
+            block_Amount = item.amount
+        end
+        if item.id == ITEM.Seed_ID then
+            seed_Amount = item.amount
+        end
+    end
+    
+    return block_Amount, seed_Amount
+end
+
+-- =============================================
+-- WEBHOOK NOTIFICATION (Sesuai Script Auto Harvest)
+-- =============================================
+
+Webhook = {
+    URL = "https://discord.com/api/webhooks/1518654593150484603/ikSrN7VEgHvuDz844wjTudWAJLHkgowr9QnEfhEuoKmZc9No2yX7FqIF1PNLifAFrutP"
+}
+
+function ConfigWebhook()
+    if not sendWebhook then return end
+    
+    local harvestWorldsString = ""
+    for i, world in ipairs(WORLD.Harvest_World) do
+        harvestWorldsString = harvestWorldsString .. "🌍 " .. world
+        if i < #WORLD.Harvest_World then 
+            harvestWorldsString = harvestWorldsString .. "\n" 
+        end
+    end
+    
+    local webhookData = {
+        username = "🌱 AutoHarvest Bot",
+        avatar_url = "https://i.imgur.com/4M34hi2.png",
+        content = "🚀 **Auto Harvest Script Started**\n\n" ..
+                 "🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️\n" ..
+                 "📍 **Drop World:** `" .. WORLD.Drop_World .. "`\n" ..
+                 "🌾 **Harvest Worlds:**\n`" .. harvestWorldsString .. "`\n\n" ..
+                 "📊 **Total Harvest Worlds:** " .. #WORLD.Harvest_World .. "\n\n" ..
+                 "🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️🗞️"
+    }
+    sendWebhook(Webhook.URL, webhookData)
+end
+
+ConfigWebhook()
+
+-- =============================================
+-- FUNGSI HARVEST
+-- =============================================
+
+function Harvest(seedID, delay)
+    local harvested = false
+    local block_Amount, seed_Amount = inventory()
+    
+    for _, tile in pairs(getTile()) do
+        local extra = getExtraTile(tile.pos.x, tile.pos.y)
+        if tile.fg == seedID and extra and extra.ready and block_Amount < ITEM.Target_Amount and seed_Amount < ITEM.Target_Amount then
+            findPath(tile.pos.x, tile.pos.y)
+            sleep(delay)
+            requestTileChange(tile.pos.x, tile.pos.y, 18)
+            sleep(delay)
+            collect(tile.pos.x, tile.pos.y)
+            harvested = true
+            block_Amount, seed_Amount = inventory()
+        end
+    end
+    return harvested
+end
+
+-- =============================================
+-- FUNGSI DROP
+-- =============================================
+
+function DropPos()
+    local tiles = getTile()
+    if not tiles then return false end
+    for _, tile in ipairs(tiles) do
+        if tile.fg == DROP.Target_Pos then
+            local targetX = tile.pos.x - DROP.Drop_Index
+            local targetY = tile.pos.y
+            findPath(targetX, targetY)
+            sleep(DELAY.Move)
+            return true
+        end
+    end
+    return false
+end
+
+function DropItems()
+    local seedID = ITEM.Seed_ID
+    
+    while true do
+        local block_Amount, seed_Amount = inventory()
+        
+        if block_Amount < ITEM.Target_Amount and seed_Amount < ITEM.Target_Amount then
+            break
+        end
+        
+        if not DropPos() then
+            send("`4Drop position not found, dropping at current location")
+        end
+        
+        if block_Amount >= ITEM.Target_Amount then
+            dropItem(seedID - 1, block_Amount)
+        end
+        
+        if seed_Amount >= ITEM.Target_Amount then
+            dropItem(seedID, seed_Amount)
+        end
+        
+        sleep(500)
+    end
+    return true
+end
+
+-- =============================================
+-- FUNGSI NEXT WORLD
+-- =============================================
+
+function NextWorld()
+    state.World_Index = state.World_Index + 1
+    if state.World_Index > #WORLD.Harvest_World then
+        state.World_Index = 1
+    end
+    local nextWorld = WORLD.Harvest_World[state.World_Index]
+    return Warp(nextWorld)
+end
+
+-- =============================================
+-- FUNGSI MAIN
+-- =============================================
+
+function Main()
+    if state.paused then return end
+    
+    local block_Amount, seed_Amount = inventory()
+    
+    if block_Amount >= ITEM.Target_Amount or seed_Amount >= ITEM.Target_Amount then
+        -- Drop phase
+        if not Warp(WORLD.Drop_World) then
+            return
+        end
+        if DropPos() then
+            DropItems()
+            send("`2Drop completed")
+        else
+            send("`4Drop position not found, dropping at current location")
+            DropItems()
+        end
+    else
+        -- Harvest phase
+        local currentWorld = WORLD.Harvest_World[state.World_Index]
+        if not Warp(currentWorld) then
+            return
+        end
+        local harvested = Harvest(ITEM.Seed_ID, DELAY.Harvest)
+        if not harvested then
+            send("`9No ready plants, moving to next world")
+            NextWorld()
+        end
+    end
+end
+
+-- =============================================
+-- HOOK ERROR DROP
+-- =============================================
+
+AddHook("onvarlist", "DropError", function(vlist, netID)
+    if vlist and vlist[0] == "OnTextOverlay" and vlist[1] then
+        if string.find(vlist[1], "You can't") then
+            DROP.Drop_Index = DROP.Drop_Index + 1
+            send("`4Offset increased to: " .. DROP.Drop_Index)
+        end
+    elseif vlist and vlist[0] == "OnConsoleMessage" and vlist[1] then
+        if string.find(vlist[1], "World Locked") and state.paused then
+            state.paused = false
+            send("`4Script continue.")
+        end
+    elseif vlist and vlist[0] == "OnDialogRequest" and vlist[1] then
+        if string.find(vlist[1], "add_textbox|How many to drop?") then
+            send("`wDrop Items.")
+            return true
+        end
+    end
+    return false
+end)
+
+-- =============================================
+-- LOOP UTAMA
+-- =============================================
+
+while true do
+    if not state.paused then
+        local success, err = pcall(Main)
+        if not success then
+            send("`4Error: " .. tostring(err))
+            logToConsole("Error: " .. tostring(err))
+            state.paused = true
+            send("`4Script paused due to error")
+        end
+    else
+        send("`4Script paused. Witing to continue")
+        sleep(5000)
+    end
+    sleep(DELAY.Loop)
+end
+
+
+
+
+
+
+
+
+
+
+
+
