@@ -28,7 +28,7 @@ DROP = {
     Target_Pos = 20,       -- ID foreground tile target untuk drop
     Drop_Index = 2         -- Offset dari tile target (x - offset)
 }
-
+]]
 -- =============================================
 -- STATE (Jangan diubah manual)
 -- =============================================
@@ -39,7 +39,7 @@ state = {
     World_Index = 1,
     paused = false
 }
-]]
+
 -- =============================================
 -- FUNGSI UTILITY
 -- =============================================
