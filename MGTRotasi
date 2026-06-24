@@ -1,0 +1,319 @@
+-- =============================================
+-- KONFIGURASI
+-- =============================================
+--[[
+Seed_ID = 5667
+Block_ID = 5666
+Target_Item = 20
+Harvest_Worlds = {"oqguv|baso11"}
+Drop_World = "homosen|baso99"      -- Belum dipakai
+Harvest_Delay = 200
+Place_Delay = 200
+Break_Delay = 180
+Collect_Delay = 10
+Warp_Delay = 5000
+Loop_Delay = 2000
+Move_Delay = 300
+Pos_Break = {x = 2, y = 1}
+Drop_Tile = 20                     -- Belum dipakai
+Drop_Offset = 1                    -- Belum dipakai
+Collect_Range = 4
+Max_Warp_Attempts = 5
+]]
+-- =============================================
+-- STATE
+-- =============================================
+state = {
+    worldIndex = 1,
+    warpAttempts = 0,
+    paused = false,
+    phase = "harvest"   -- "harvest" | "pnb" | "plant"
+}
+
+-- =============================================
+-- FUNGSI UTILITY
+-- =============================================
+
+function send(txt)
+    local var = {}
+    var[0] = "OnTextOverlay"
+    var[1] = txt
+    sendVariant(var)
+end
+
+function getAmount(id)
+    for _, item in pairs(getInventory()) do
+        if item.id == id then return item.amount end
+    end
+    return 0
+end
+
+function getBlockAndSeed()
+    return getAmount(Block_ID), getAmount(Seed_ID)
+end
+
+function WorldCheck(targetWorld)
+    local currentWorld = getWorld()
+    if not currentWorld then return false end
+    local targetName = string.upper((targetWorld:match("([^|]+)") or targetWorld))
+    local currentName = string.upper(currentWorld.name)
+    return targetName == currentName
+end
+
+function Warp(worldName)
+    state.warpAttempts = 0
+    local maxAttempts = Max_Warp_Attempts
+    while state.warpAttempts < maxAttempts do
+        send("`2Warp to `#" .. worldName .. " (" .. (state.warpAttempts+1) .. "/" .. maxAttempts .. ")")
+        sendPacket(3, "action|join_request\nname|" .. worldName)
+        sleep(Warp_Delay)
+        if WorldCheck(worldName) then
+            send("`2Arrived")
+            return true
+        else
+            state.warpAttempts = state.warpAttempts + 1
+            if state.warpAttempts < maxAttempts then sleep(5000) end
+        end
+    end
+    send("`4Warp failed")
+    state.paused = true
+    return false
+end
+
+function collectItems()
+    requestCollectByRange(Collect_Range)
+    sleep(Collect_Delay)
+end
+
+function dropItem(id, count)
+    sendPacket(2, "action|drop\n|itemID|" .. id)
+    sleep(100)
+    sendPacket(2, "action|dialog_return\ndialog_name|drop_item\nitemID|" .. id .. "|\ncount|" .. count)
+    sleep(100)
+end
+
+function NextWorld()
+    state.worldIndex = state.worldIndex + 1
+    if state.worldIndex > #Harvest_Worlds then
+        state.worldIndex = 1
+    end
+    local nextWorld = Harvest_Worlds[state.worldIndex]
+    send("`9Moving to next world: " .. nextWorld)
+    return Warp(nextWorld)
+end
+
+-- =============================================
+-- PHASE 1: HARVEST
+-- =============================================
+function Harvest()
+    local block, seed = getBlockAndSeed()
+    
+    if block >= Target_Item then
+        send("`9Block target reached (" .. block .. "/" .. Target_Item .. "), switching to PNB")
+        state.phase = "pnb"
+        return true
+    end
+    
+    local harvested = false
+    for _, tile in pairs(getTile()) do
+        local extra = getExtraTile(tile.pos.x, tile.pos.y)
+        if tile.fg == Seed_ID and extra and extra.ready then
+            findPath(tile.pos.x, tile.pos.y)
+            sleep(Move_Delay)
+            requestTileChange(tile.pos.x, tile.pos.y, 18)
+            sleep(Harvest_Delay)
+            collectItems()
+            harvested = true
+            
+            block, seed = getBlockAndSeed()
+            if block >= Target_Item then
+                send("`9Block target reached during harvest, switching to PNB")
+                state.phase = "pnb"
+                return true
+            end
+        end
+    end
+    
+    if not harvested then
+        send("`9No ready plants, switching to PLANT")
+        state.phase = "plant"
+    end
+    
+    return harvested
+end
+
+-- =============================================
+-- PHASE 2: PNB (Place & Break) - DENGAN WHILE LOOP
+-- =============================================
+function pnb()
+    local XCoords = 2
+    local YCoords = -1
+
+    -- Pindah ke Pos_Break jika belum
+    local px = math.floor(getLocal().pos.x / 32)
+    local py = math.floor(getLocal().pos.y / 32)
+    if px ~= Pos_Break.x or py ~= Pos_Break.y then
+        send("`9Moving to break position (" .. Pos_Break.x .. ", " .. Pos_Break.y .. ")")
+        findPath(Pos_Break.x, Pos_Break.y)
+        sleep(Move_Delay)
+        px, py = Pos_Break.x, Pos_Break.y
+    end
+
+    -- Loop selama masih ada block DAN seed belum mencapai target
+    while true do
+        local block, seed = getBlockAndSeed()
+        if block == 0 or seed >= Target_Item then
+            break
+        end
+
+        -- Place block (hanya jika ada block)
+        for ox = -XCoords, XCoords do
+            local tile = checkTile(px + ox, py + YCoords)
+            if tile and tile.fg == 0 and getAmount(Block_ID) > 0 then
+                requestTileChange(tile.pos.x, tile.pos.y, Block_ID)
+                sleep(Place_Delay)
+            end
+        end
+        collectItems()
+        sleep(200)
+
+        -- Break block (hanya block)
+        for ox = -XCoords, XCoords do
+            local tile = checkTile(px + ox, py + YCoords)
+            while tile and tile.fg == Block_ID do
+                requestTileChange(tile.pos.x, tile.pos.y, 18)
+                sleep(Break_Delay)
+                collectItems()
+                tile = checkTile(tile.pos.x, tile.pos.y)
+            end
+        end
+    end
+
+    -- Setelah loop selesai, pindah ke plant
+    send("`9PNB finished, switching to PLANT")
+    state.phase = "plant"
+end
+
+-- =============================================
+-- PHASE 3: PLANT
+-- =============================================
+function plant()
+    local seedAmount = getAmount(Seed_ID)
+    if seedAmount == 0 then
+        send("`9No seed to plant, switching to HARVEST")
+        state.phase = "harvest"
+        return false, "no_seed"
+    end
+
+    send("`2Planting... (" .. seedAmount .. " seeds)")
+
+    local hasPlanted = false
+    for y = 0, 53 do
+        for x = 0, 99 do
+            if x % 10 == 0 and getAmount(Seed_ID) == 0 then
+                send("`9Seed habis di tengah penanaman")
+                state.phase = "harvest"
+                return hasPlanted, "no_seed"
+            end
+
+            local currentTile = checkTile(x, y)
+            local tileBelow = checkTile(x, y + 1)
+
+            if currentTile.fg == 0 and tileBelow and tileBelow.fg % 2 == 0 and tileBelow.fg ~= 0 then
+                if findPath(x, y) then
+                    sleep(Move_Delay)
+                    requestTileChange(x, y, Seed_ID)
+                    sleep(Place_Delay)
+                    hasPlanted = true
+                end
+            elseif y == 1 then
+                local tileAbove = checkTile(x, y - 1)
+                if tileAbove and tileAbove.fg == 0 and currentTile.fg % 2 == 0 and currentTile.fg ~= 0 and getAmount(Seed_ID) > 0 then
+                    if findPath(x, y - 1) then
+                        sleep(Move_Delay)
+                        requestTileChange(x, y - 1, Seed_ID)
+                        sleep(Place_Delay)
+                        hasPlanted = true
+                    end
+                end
+            elseif y == 52 then
+                local tileBelow52 = checkTile(x, y + 1)
+                if currentTile.fg ~= 0 and currentTile.fg % 2 == 0 and tileBelow52 and tileBelow52.fg == 0 and getAmount(Seed_ID) > 0 then
+                    if findPath(x, y + 1) then
+                        sleep(Move_Delay)
+                        requestTileChange(x, y + 1, Seed_ID)
+                        sleep(Place_Delay)
+                        hasPlanted = true
+                    end
+                end
+            end
+
+            if x % 20 == 0 then
+                sleep(50)
+            end
+        end
+    end
+
+    -- Cek inventory SETELAH selesai tanam (HANYA SEED YANG MEMICU DROP, tapi drop di-skip)
+    local block, seed = getBlockAndSeed()
+    if seed >= Target_Item then
+        send("`9Seed target reached (" .. seed .. "/" .. Target_Item .. "), but drop not implemented. Returning to harvest.")
+        state.phase = "harvest"
+    else
+        state.phase = "harvest"
+    end
+
+    return hasPlanted, "success"
+end
+
+-- =============================================
+-- FUNGSI MAIN (HANYA 3 PHASE)
+-- =============================================
+function Main()
+    if state.paused then return end
+
+    local currentWorld = Harvest_Worlds[state.worldIndex]
+    if not WorldCheck(currentWorld) then
+        if not Warp(currentWorld) then return end
+    end
+
+    if state.phase == "harvest" then
+        Harvest()
+    elseif state.phase == "pnb" then
+        pnb()
+    elseif state.phase == "plant" then
+        plant()
+    end
+end
+
+-- =============================================
+-- HOOK ERROR DROP (Opsional, belum dipakai)
+-- =============================================
+AddHook("onvarlist", "DropError", function(vlist)
+    if vlist[0] == "OnTextOverlay" and vlist[1] then
+        if string.find(vlist[1], "You can't") then
+            Drop_Offset = Drop_Offset + 1
+            send("`4Offset increased to: " .. Drop_Offset)
+        end
+    end
+    return false
+end)
+
+-- =============================================
+-- LOOP UTAMA
+-- =============================================
+send("`2Rotation Bot Started! Phase: HARVEST")
+
+while true do
+    if not state.paused then
+        local success, err = pcall(Main)
+        if not success then
+            send("`4Error: " .. tostring(err))
+            state.paused = true
+        end
+    else
+        sleep(5000)
+    end
+    sleep(Loop_Delay)
+end
+
