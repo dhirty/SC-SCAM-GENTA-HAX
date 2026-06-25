@@ -85,6 +85,14 @@ function collectItems()
     sleep(Collect_Delay)
 end
 
+function collect(tileX, tileY)
+    local collectIDs = {Seed_ID, Seed_ID - 1}
+    for _, id in ipairs(collectIDs) do
+        requestCollect(tileX, tileY, id)
+        sleep(50)
+    end
+end
+
 function dropItem(id, count)
     sendPacket(2, "action|drop\n|itemID|" .. id)
     sleep(100)
@@ -122,7 +130,7 @@ function Harvest()
             sleep(Move_Delay)
             requestTileChange(tile.pos.x, tile.pos.y, 18)
             sleep(Harvest_Delay)
-            collectItems()
+            collect(tile.pos.x, tile.pos.y)
             harvested = true
             
             block, seed = getBlockAndSeed()
